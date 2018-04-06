@@ -1,12 +1,13 @@
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
+#include <geometry_msgs/Point.h>
+#include <nav_msgs/Path.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 
 #include <viso_stereo.h>
-
 #include <viso2_ros/VisoInfo.h>
 
 #include "stereo_processor.h"
@@ -55,8 +56,12 @@ private:
 
   ros::Publisher point_cloud_pub_;
   ros::Publisher info_pub_;
+  ros::Publisher path_pub_;
 
   bool got_lost_;
+  
+  // saved trajectory for visualization
+  nav_msgs::Path path_msg;
 
   // change reference frame method. 0, 1 or 2. 0 means allways change. 1 and 2 explained below
   int ref_frame_change_method_;
@@ -83,6 +88,7 @@ public:
 
     point_cloud_pub_ = local_nh.advertise<PointCloud>("point_cloud", 1);
     info_pub_ = local_nh.advertise<VisoInfo>("info", 1);
+    path_pub_ = local_nh.advertise<nav_msgs::Path>("vo", 1);
 
     reference_motion_ = Matrix::eye(4);
   }
@@ -270,8 +276,7 @@ protected:
     }
   }
 
-  double computeFeatureFlow(
-      const std::vector<Matcher::p_match>& matches)
+  double computeFeatureFlow(const std::vector<Matcher::p_match>& matches)
   {
     double total_flow = 0.0;
     for (size_t i = 0; i < matches.size(); ++i)
