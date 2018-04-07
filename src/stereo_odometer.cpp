@@ -1,14 +1,13 @@
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
-#include <geometry_msgs/Point.h>
-#include <nav_msgs/Path.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 
 #include <viso_stereo.h>
-#include <viso2_ros/VisoInfo.h>
+
+#include <viso2_slam/VisoInfo.h>
 
 #include "stereo_processor.h"
 #include "odometer_base.h"
@@ -17,9 +16,7 @@
 // to remove after debugging
 #include <opencv2/highgui/highgui.hpp>
 
-using namespace std;
-
-namespace viso2_ros
+namespace viso2_slam
 {
 
 // some arbitrary values (0.1m^2 linear cov. 10deg^2. angular cov.)
@@ -56,12 +53,8 @@ private:
 
   ros::Publisher point_cloud_pub_;
   ros::Publisher info_pub_;
-  ros::Publisher path_pub_;
 
   bool got_lost_;
-  
-  // saved trajectory for visualization
-  nav_msgs::Path path_msg;
 
   // change reference frame method. 0, 1 or 2. 0 means allways change. 1 and 2 explained below
   int ref_frame_change_method_;
@@ -88,7 +81,6 @@ public:
 
     point_cloud_pub_ = local_nh.advertise<PointCloud>("point_cloud", 1);
     info_pub_ = local_nh.advertise<VisoInfo>("info", 1);
-    path_pub_ = local_nh.advertise<nav_msgs::Path>("vo", 1);
 
     reference_motion_ = Matrix::eye(4);
   }
@@ -178,13 +170,10 @@ protected:
       if (success)
       {
         Matrix motion = Matrix::inv(visual_odometer_->getMotion());
-        ROS_INFO("Found %i matches with %i inliers.",
+        ROS_DEBUG("Found %i matches with %i inliers.",
                   visual_odometer_->getNumberOfMatches(),
                   visual_odometer_->getNumberOfInliers());
-                          
-        // ROS_DEBUG_STREAM("libviso2 returned the following motion:\n" << motion);
-        cout << "libviso2 returned the following motion:\n" << motion << endl;
-        
+        ROS_DEBUG_STREAM("libviso2 returned the following motion:\n" << motion);
         Matrix camera_motion;
         // if image was replaced due to small motion we have to subtract the
         // last motion to get the increment
@@ -226,7 +215,7 @@ protected:
         delta_transform.setIdentity();
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
 
-        ROS_INFO("Call to VisualOdometryStereo::process() failed.");
+        ROS_DEBUG("Call to VisualOdometryStereo::process() failed.");
         ROS_WARN_THROTTLE(10.0, "Visual Odometer got lost!");
         got_lost_ = true;
       }
@@ -276,7 +265,8 @@ protected:
     }
   }
 
-  double computeFeatureFlow(const std::vector<Matcher::p_match>& matches)
+  double computeFeatureFlow(
+      const std::vector<Matcher::p_match>& matches)
   {
     double total_flow = 0.0;
     for (size_t i = 0; i < matches.size(); ++i)
@@ -344,7 +334,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "stereo_odometer");
   if (ros::names::remap("stereo") == "stereo") {
     ROS_WARN("'stereo' has not been remapped! Example command-line usage:\n"
-             "\t$ rosrun viso2_ros stereo_odometer stereo:=narrow_stereo image:=image_rect");
+             "\t$ rosrun viso2_slam stereo_odometer stereo:=narrow_stereo image:=image_rect");
   }
   if (ros::names::remap("image").find("rect") == std::string::npos) {
     ROS_WARN("stereo_odometer needs rectified input images. The used image "
@@ -353,7 +343,7 @@ int main(int argc, char **argv)
   }
 
   std::string transport = argc > 1 ? argv[1] : "raw";
-  viso2_ros::StereoOdometer odometer(transport);
+  viso2_slam::StereoOdometer odometer(transport);
 
   ros::spin();
   return 0;

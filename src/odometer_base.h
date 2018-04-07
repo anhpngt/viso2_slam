@@ -9,7 +9,7 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
-namespace viso2_ros
+namespace viso2_slam
 {
 
 /**

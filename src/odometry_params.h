@@ -3,7 +3,7 @@
 #include <viso_stereo.h>
 #include <viso_mono.h>
 
-namespace viso2_ros
+namespace viso2_slam
 {
 
 namespace odometry_params
