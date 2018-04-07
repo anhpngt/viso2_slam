@@ -1,4 +1,3 @@
-viso2
+viso2_slam
 ==========
-ROS Stack containing a wrapper for libviso2, a visual odometry library. 
-http://www.ros.org/wiki/viso2 for the list of contained packages.
+Original package - viso2: [github](https://github.com/srv/viso2), (Wiki)[http://www.ros.org/wiki/viso2]

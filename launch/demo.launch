@@ -12,7 +12,7 @@
   <node ns="$(arg camera)" pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
 
   <!-- Viso2 -->
-  <node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer">
+  <node pkg="viso2_slam" type="stereo_slam" name="stereo_slam" output="screen">
     <remap from="stereo" to="$(arg camera)"/>
     <remap from="image" to="image_rect"/>
     <param name="base_link_frame_id" value="$(arg camera)"/>
