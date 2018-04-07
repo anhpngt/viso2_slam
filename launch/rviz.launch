@@ -1,0 +1,5 @@
+<launch>
+
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find viso2_slam)/config/viso2.rviz" output="screen" />
+
+</launch>

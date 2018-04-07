@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(viso2_slam)
 
 find_package(catkin REQUIRED COMPONENTS 
-  roscpp 
+  roscpp
   sensor_msgs 
   nav_msgs 
   message_filters 

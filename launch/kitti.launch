@@ -1,15 +1,20 @@
 <launch>
 
 	<!-- Arguments -->
-	<arg name="bagfile" default="/home/zwu/Desktop/KITTI/kitti_data_odometry_gray_sequence_00.bag"/> <!-- Find it on http://srv.uib.es/public/viso2_ros/sample_bagfiles/  -->
+	<arg name="bagfile" default="/home/echo/Desktop/ugv_slam_data/kitti_data_odometry_gray_sequence_00.bag"/> <!-- Find it on http://srv.uib.es/public/viso2_ros/sample_bagfiles/  -->
   <arg name="camera" default="/kitti"/>
   <param name="/use_sim_time" value="true"/>
 
-  <!-- Play the bagfile -->
-  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)" />
+  <!-- Play the bagfile, note the rename of topics-->
+  <node pkg="rosbag" type="play" name="rosbag" 
+        args="--pause --clock $(arg bagfile)
+              /kitti/camera_gray_left/camera_info:=/kitti/left/camera_info
+              /kitti/camera_gray_right/camera_info:=/kitti/right/camera_info
+              /kitti/camera_gray_left/image_rect:=/kitti/left/image_rect
+              /kitti/camera_gray_right/image_rect:=/kitti/right/image_rect" />
 
   <!-- Run the stereo image proc -->
-  <node ns="$(arg camera)" pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
+  <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" ns="$(arg camera)" />
 
   <!-- Viso2 -->
   <node pkg="viso2_slam" type="stereo_slam" name="stereo_slam" output="screen">
