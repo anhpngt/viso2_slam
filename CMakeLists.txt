@@ -50,13 +50,10 @@ add_library(libviso2
 )
   
 add_executable(stereo_slam src/stereo_slam.cpp)
-add_dependencies(stereo_slam 
-  ${catkin_EXPORTED_TARGETS} 
-  ${PROJECT_NAME}_gencpp
-)
-target_link_libraries(stereo_slam
-  libviso2
-  ${OpenCV_LIBRARIES}
-  ${catkin_LIBRARIES}
-  ${Boost_LIBRARIES}
-)
+add_executable(pose_optimizer src/pose_optimizer.cpp)
+
+add_dependencies(stereo_slam ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+add_dependencies(pose_optimizer ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+
+target_link_libraries(stereo_slam libviso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(pose_optimizer ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
