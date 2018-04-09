@@ -49,7 +49,7 @@ add_library(libviso2
   include/viso_stereo.cpp
 )
   
-add_executable(stereo_slam src/stereo_odometer.cpp)
+add_executable(stereo_slam src/stereo_slam.cpp)
 add_dependencies(stereo_slam 
   ${catkin_EXPORTED_TARGETS} 
   ${PROJECT_NAME}_gencpp

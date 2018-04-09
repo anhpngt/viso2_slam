@@ -5,10 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Image1
-        - /PointCloud22
-        - /PointCloud22/Status1
-      Splitter Ratio: 0.5
+        - /TF1
+      Splitter Ratio: 0.458333343
     Tree Height: 567
   - Class: rviz/Selection
     Name: Selection
@@ -55,11 +53,11 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        base_link:
+          Value: true
+        camera_gray_left:
+          Value: true
         camera_left:
-          Value: true
-        kitti:
-          Value: true
-        odom:
           Value: true
         world:
           Value: true
@@ -69,7 +67,12 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        world:
+          base_link:
+            camera_gray_left:
+              {}
+          camera_left:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -97,7 +100,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.100000001
       Style: Flat Squares
-      Topic: /stereo_odometer/point_cloud
+      Topic: /stereo_slam/point_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -115,40 +118,56 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: ""
-      Decay Time: 0
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 25; 255; 0
       Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: ""
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.00999999978
-      Style: Flat Squares
-      Topic: /stereo_slam/point_cloud
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
+      Line Style: Lines
+      Line Width: 0.0299999993
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
+      Topic: /stereo_slam/trajectory
       Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 255; 0; 0
+      Enabled: true
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
+      Line Style: Lines
+      Line Width: 0.0299999993
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
+      Topic: /kitti/trajectory
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: stereo_forward_optical
+    Fixed Frame: world
     Frame Rate: 30
   Name: root
   Tools:
@@ -169,7 +188,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 51.6503334
+      Distance: 123.566177
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -184,10 +203,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.695398271
-      Target Frame: <Fixed Frame>
+      Pitch: 0.785398185
+      Target Frame: kitti
       Value: Orbit (rviz)
-      Yaw: 0.540398419
+      Yaw: 0.785398185
     Saved: ~
 Window Geometry:
   Displays:
