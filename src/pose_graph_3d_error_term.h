@@ -26,30 +26,20 @@ struct Pose3d
 
   Pose3d()
   {
-      q.setIdentity();
-      p.fill(0.);
+    q.setIdentity();
+    p.fill(0.);
   };
-
-  // Pose3d(const Pose3d &_p):
-  //       p(_p.p), q(_p.q), n(_p.n)
-  // {};
-
+  
   Pose3d(const Pose3d &_p):
-        p(_p.p), q(_p.q)
+    p(_p.p), q(_p.q)
   {};
 
-  // Pose3d(const Eigen::Vector3d &_p, 
-  //        const Eigen::Quaterniond &_q,
-  //        const Eigen::Vector3d &_n):
-  //       p(_p), q(_q), n(_n)
-  // {};
-
   Pose3d(const Eigen::Vector3d &_p, const Eigen::Quaterniond &_q):
-        p(_p), q(_q)
+    p(_p), q(_q)
   {};
 
   Pose3d(const Eigen::Vector3d &t, const Eigen::Matrix3d &R): 
-        p(t), q(Eigen::Quaterniond(R))
+    p(t), q(Eigen::Quaterniond(R))
   {};
 
   Pose3d inverse() const
@@ -57,7 +47,7 @@ struct Pose3d
     return Pose3d(q.conjugate()*(-1.*p), q.conjugate());
   }
 
-  Pose3d operator *(const Pose3d& other) const 
+  Pose3d operator*(const Pose3d& other) const 
   {
     Pose3d ret;
     ret.q = q*other.q;
@@ -65,7 +55,7 @@ struct Pose3d
     return ret;
   }
 
-  Eigen::Vector3d map (const Eigen::Vector3d& xyz) const 
+  Eigen::Vector3d map(const Eigen::Vector3d& xyz) const 
   {
     return (q*xyz) + p;
   }
@@ -78,16 +68,16 @@ struct Pose3d
 
   inline Eigen::Quaterniond& rotation() {return q;}
 
-  friend ostream& operator<<(ostream& os, const Pose3d& ret) { 
+  friend ostream& operator<<(ostream& os, const Pose3d& ret)
+  { 
 	  os << "p = (" << ret.p.x() << "," << ret.p.y() << "," << ret.p.z() << ")," 
 	     << "q = (" << ret.q.x() << "," << ret.q.y() << "," << ret.q.z() << "," << ret.q.w() << ")";  
-      return os;  
+    return os;  
   } 
 };
 typedef struct Pose3d Pose3d;
 
 typedef vector<Pose3d, Eigen::aligned_allocator<Pose3d>> VectorofPoses;
-typedef vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> VectorofNormalVectors;
 
 // The constraint between two vertices in the pose graph. The constraint is the
 // transformation from vertex id_begin to vertex id_end.
@@ -114,13 +104,13 @@ struct Constraint3d {
   };
 
   Constraint3d(int ib, int ie, Pose3d t_be_, Eigen::Matrix<double, 6, 6> inf):
-      id_begin(ib), id_end(ie), t_be(t_be_), information(inf)
+    id_begin(ib), id_end(ie), t_be(t_be_), information(inf)
   {};
 
   Constraint3d(int ib, int ie, Pose3d t_be_):
-      id_begin(ib), id_end(ie), t_be(t_be_)
+    id_begin(ib), id_end(ie), t_be(t_be_)
   {
-      information.setIdentity();
+    information.setIdentity();
   };
 };
 
@@ -131,7 +121,7 @@ class PoseGraph3dErrorTerm
  public:
   PoseGraph3dErrorTerm(const Pose3d& t_ab_measured,
                        const Eigen::Matrix<double, 6, 6>& sqrt_information)
-      : t_ab_measured_(t_ab_measured), sqrt_information_(sqrt_information) {};
+    : t_ab_measured_(t_ab_measured), sqrt_information_(sqrt_information) {};
 
   template <typename T>
   bool operator()(const T* const p_a_ptr, const T* const q_a_ptr,
@@ -146,7 +136,7 @@ class PoseGraph3dErrorTerm
 
 	  // Compute inversion of b (T)
     Eigen::Quaternion<T> q_b_inverse = q_b.conjugate();
-    Eigen::Matrix<T, 3, 1> p_b_inverse = q_b_inverse*(-p_b);
+    Eigen::Matrix<T, 3, 1> p_b_inverse = q_b_inverse * (-p_b);
 
     // Compute the relative rotation between the two frames.
     Eigen::Quaternion<T> q_ab_estimated = q_b_inverse * q_a;

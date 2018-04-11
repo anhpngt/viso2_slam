@@ -59,6 +59,10 @@ Visualization Manager:
           Value: true
         camera_left:
           Value: true
+        gps:
+          Value: true
+        odom:
+          Value: true
         world:
           Value: true
       Marker Scale: 1
@@ -68,11 +72,7 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          base_link:
-            camera_gray_left:
-              {}
-          camera_left:
-            {}
+          {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -137,7 +137,7 @@ Visualization Manager:
       Radius: 0.0299999993
       Shaft Diameter: 0.100000001
       Shaft Length: 0.100000001
-      Topic: /stereo_slam/trajectory
+      Topic: /gps/trajectory
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -160,7 +160,30 @@ Visualization Manager:
       Radius: 0.0299999993
       Shaft Diameter: 0.100000001
       Shaft Length: 0.100000001
-      Topic: /kitti/trajectory
+      Topic: /odom/trajectory
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 0; 255
+      Enabled: true
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
+      Line Style: Lines
+      Line Width: 0.0299999993
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
+      Topic: /pose_optimizer/trajectory
       Unreliable: false
       Value: true
   Enabled: true
@@ -188,7 +211,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 123.566177
+      Distance: 34.3861771
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -226,5 +249,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1855
-  X: 65
+  X: 1985
   Y: 24

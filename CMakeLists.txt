@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV REQUIRED QUIET)
 find_package(PCL REQUIRED QUIET)
 find_package(Boost REQUIRED QUIET COMPONENTS signals thread)
+find_package(Ceres REQUIRED QUIET)
 
 add_message_files(DIRECTORY msg FILES VisoInfo.msg)
 
@@ -36,6 +37,7 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS} 
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 
 add_library(libviso2
@@ -56,4 +58,4 @@ add_dependencies(stereo_slam ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 add_dependencies(pose_optimizer ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 
 target_link_libraries(stereo_slam libviso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-target_link_libraries(pose_optimizer ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(pose_optimizer ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
