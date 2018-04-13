@@ -61,6 +61,7 @@ private:
   // Optimizer
   Optimizer::VectorofPoses optimizer_poses_;
   Optimizer::VectorOfConstraints optimizer_constraints_;
+  size_t total_optimized_size_;
   ceres::Problem *optimizer_problem_ = new ceres::Problem;
   ceres::Solver::Options optimizer_options_;
   ceres::Solver::Summary optimizer_summary_;
@@ -105,9 +106,10 @@ public:
     trajectory_msg_.header.frame_id = odom_frame_id_;
 
     // Optimizer
+    total_optimized_size_ = 0;
     optimizer_options_.max_num_iterations = 100;
 	  optimizer_options_.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-	  optimizer_options_.minimizer_progress_to_stdout = true;
+	  optimizer_options_.minimizer_progress_to_stdout = false;
 
     // Data initialization
     is_vo_lost_ = false;
@@ -151,12 +153,11 @@ private:
 
     // Transform pose from odom frame to optimized frame
     tf::Transform current_pose = last_optimized_pose_ * (last_raw_pose_.inverse() * new_vo_tf);
-    double x,y,z,rl,pt,yw;
-    x = current_pose.getOrigin().x();
-    y = current_pose.getOrigin().y();
-    z = current_pose.getOrigin().z();
-    current_pose.getBasis().getRPY(rl, pt, yw, 1);
-    printf("New: (%.3f, %.3f, %.3f, %.3f, %.3f, %.3f)\n", x, y, z, rl, pt, yw);
+    // double x,y,z,rl,pt,yw;
+    // x = current_pose.getOrigin().x();
+    // y = current_pose.getOrigin().y();
+    // z = current_pose.getOrigin().z();
+    // current_pose.getBasis().getRPY(rl, pt, yw, 1);
     tf::Vector3 current_p = current_pose.getOrigin();   
     tf::Quaternion current_q = current_pose.getRotation();
     Eigen::Vector3d eigen_p(current_p.x(), current_p.y(), current_p.z());
@@ -201,8 +202,10 @@ private:
       // Extract optimized poses from optimzer_poses_
       extractOptimizedTrajectory();
 
-      last_raw_pose_ = current_pose;
+      last_raw_pose_ = new_vo_tf;
       last_optimized_pose_ = current_gps_pose;
+      total_optimized_size_ += optimizer_poses_.size();
+      optimizer_poses_.clear();
     }
     else // VO has not drift that much
     {
@@ -264,7 +267,6 @@ private:
     last_gps_time_ = current_time;
 
     tf_broadcaster_.sendTransform(tf::StampedTransform(gps_pose, current_time, odom_frame_id_, gps_frame_id_));
-    // ROS_INFO("Received GPS data");
   }
 
   void kittiTFCallback(const tf::tfMessage::ConstPtr& tf_msg)
@@ -416,7 +418,7 @@ private:
 
   void extractOptimizedTrajectory()
   {
-    if(optimizer_poses_.size() != trajectory_msg_.poses.size())
+    if(optimizer_poses_.size() + total_optimized_size_ != trajectory_msg_.poses.size())
     {
       ROS_ERROR("Size error between optimizer poses and trajectory poses.");
       return;
@@ -424,15 +426,16 @@ private:
     for(size_t i = 0, i_end = optimizer_poses_.size(); i < i_end; i++)
     {
       Optimizer::Pose3d pose = optimizer_poses_[i];
-      trajectory_msg_.poses[i].pose.position.x = pose.p.x();
-      trajectory_msg_.poses[i].pose.position.y = pose.p.y();
-      trajectory_msg_.poses[i].pose.position.z = pose.p.z();
-      trajectory_msg_.poses[i].pose.orientation.x = pose.q.x();
-      trajectory_msg_.poses[i].pose.orientation.y = pose.q.y();
-      trajectory_msg_.poses[i].pose.orientation.z = pose.q.z();
-      trajectory_msg_.poses[i].pose.orientation.w = pose.q.w();
+      size_t j = i + total_optimized_size_;
+      trajectory_msg_.poses[j].pose.position.x = pose.p.x();
+      trajectory_msg_.poses[j].pose.position.y = pose.p.y();
+      trajectory_msg_.poses[j].pose.position.z = pose.p.z();
+      trajectory_msg_.poses[j].pose.orientation.x = pose.q.x();
+      trajectory_msg_.poses[j].pose.orientation.y = pose.q.y();
+      trajectory_msg_.poses[j].pose.orientation.z = pose.q.z();
+      trajectory_msg_.poses[j].pose.orientation.w = pose.q.w();
     }
-    ROS_INFO("Updated trajectory after optimization");
+    ROS_INFO("Trajectory updated after optimization");
   }
 
   tf::Transform getInterpolatedGPSPose(ros::Time required_time)
