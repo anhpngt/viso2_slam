@@ -42,6 +42,7 @@ include_directories(
 
 add_library(libviso2
   include/filter.cpp
+  include/kalman.cpp
   include/matcher.cpp
   include/matrix.cpp
   include/reconstruction.cpp

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <random>
 #include <string>
 
 #include <ros/ros.h>
@@ -16,6 +17,7 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
+#include <kalman.h>
 #include "pose_graph_3d_error_term.h"
 
 using namespace std;
@@ -42,6 +44,7 @@ private:
 
   bool publish_tf_;
   bool is_kitti_;
+  bool add_gps_noise_;      // Whether to add noise to simulated GPS by Kitti
   int queue_size_;
   std::string odom_frame_id_, base_link_frame_id_, gps_frame_id_;
   std::string viso2_pose_topic_, viso2_info_topic_;
@@ -57,6 +60,12 @@ private:
   tf::Transform gps_diff_pose_;
   ros::Time last_pose_time_, last_gps_time_;
   ros::Duration gps_diff_time_;
+
+  std::random_device rd_{};
+  std::mt19937 rd_generator_{rd_()}; 
+  // std::default_random_engine rd_generator_;
+  std::normal_distribution<> p_noise_{0., 0.5};
+  // std::normal_distribution<> q_noise_{0., 1. / 180. * 3.141592653589793238463};
 
   // Optimizer
   Optimizer::VectorofPoses optimizer_poses_;
@@ -78,9 +87,10 @@ public:
     local_nh.param("gps_frame_id", gps_frame_id_, std::string("/gps"));
     local_nh.param("pose_topic", viso2_pose_topic_, std::string("/stereo_slam/pose"));
     local_nh.param("info_topic", viso2_info_topic_, std::string("/stereo_slam/info"));
+    local_nh.param("queue_size", queue_size_, 10);
     local_nh.param("publish_tf", publish_tf_, true);
     local_nh.param("is_kitti", is_kitti_, true);
-    local_nh.param("queue_size", queue_size_, 10);
+    local_nh.param("add_gps_noise", add_gps_noise_, false);
     
     // Set up sync callback for viso2 odom
     pose_sub_.subscribe(nh, viso2_pose_topic_, 3);
@@ -92,7 +102,13 @@ public:
     if(is_kitti_)
     {
       ROS_INFO("Working with KITTI dataset: Simulating GPS and IMU data based on /tf topic.");
-      kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFCallback, this);
+      if(add_gps_noise_)
+      {
+        ROS_WARN("Gaussian noise will be added to GPS data");
+        kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFWithNoiseCallback, this);
+      }
+      else
+        kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFCallback, this);
     }
     else
     {
@@ -165,7 +181,7 @@ private:
 
     tf::Transform current_gps_pose = getInterpolatedGPSPose(new_vo_time);
     tf::Transform pose_discrepancy = current_gps_pose.inverse() * current_pose;
-    if(pose_discrepancy.getOrigin().length() > 1 && optimizer_poses_.size() > 50)
+    if(pose_discrepancy.getOrigin().length() > 10 && optimizer_poses_.size() > 50)
     {
       // Change final pose to GPS
       tf::Vector3 current_gps_p = current_gps_pose.getOrigin();
@@ -290,6 +306,44 @@ private:
                                   tf_msg->transforms[i].transform.rotation.y,
                                   tf_msg->transforms[i].transform.rotation.z,
                                   tf_msg->transforms[i].transform.rotation.w);
+        gps_pose.pose.pose.orientation.x = kitti_quat.z();
+        gps_pose.pose.pose.orientation.y = -kitti_quat.x();
+        gps_pose.pose.pose.orientation.z = -kitti_quat.y();
+        gps_pose.pose.pose.orientation.w = kitti_quat.w();
+        gpsCallback(gps_pose);
+        return;
+      }
+    }
+  }
+
+  void kittiTFWithNoiseCallback(const tf::tfMessage::ConstPtr& tf_msg)
+  {
+    // Note that coordinate for camera frame in /tf is: x-right, y-down, z-forward
+    // Look for the correct transform in the array
+    for(int i = 0, i_end = tf_msg->transforms.size(); i < i_end; i++)
+    {
+      if(tf_msg->transforms[i].child_frame_id == "camera_left" && tf_msg->transforms[i].header.frame_id == "world")
+      {
+        // Simulate GPS data
+        geometry_msgs::PoseWithCovarianceStamped gps_pose;
+        gps_pose.header.seq = tf_msg->transforms[i].header.seq;
+        gps_pose.header.stamp = tf_msg->transforms[i].header.stamp;
+        gps_pose.header.frame_id = "/gps";
+        gps_pose.pose.pose.position.x = tf_msg->transforms[i].transform.translation.z + p_noise_(rd_generator_);
+        gps_pose.pose.pose.position.y = -tf_msg->transforms[i].transform.translation.x + p_noise_(rd_generator_);
+        gps_pose.pose.pose.position.z = -tf_msg->transforms[i].transform.translation.y + p_noise_(rd_generator_);
+
+        tf::Quaternion kitti_quat(tf_msg->transforms[i].transform.rotation.x,
+                                  tf_msg->transforms[i].transform.rotation.y,
+                                  tf_msg->transforms[i].transform.rotation.z,
+                                  tf_msg->transforms[i].transform.rotation.w);
+
+        // double rl, pt, yw;
+        // tf::Matrix3x3(kitti_quat).getRPY(rl, pt, yw, 1);
+        // rl += q_noise_(rd_generator_);
+        // pt += q_noise_(rd_generator_);
+        // yw += q_noise_(rd_generator_);
+        // kitti_quat.setRPY(rl, pt, yw);
         gps_pose.pose.pose.orientation.x = kitti_quat.z();
         gps_pose.pose.pose.orientation.y = -kitti_quat.x();
         gps_pose.pose.pose.orientation.z = -kitti_quat.y();

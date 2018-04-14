@@ -1,7 +1,7 @@
 <launch>
 
 	<!-- Arguments -->
-	<arg name="bagfile" default="/home/echo/Desktop/ugv_slam_data/kitti_data_odometry_gray_sequence_01.bag"/>
+	<arg name="bagfile" default="/home/echo/Desktop/ugv_slam_data/kitti_data_odometry_gray_sequence_00.bag"/>
   <arg name="camera" default="/kitti"/>
   <param name="/use_sim_time" value="true"/>
 
@@ -11,7 +11,7 @@
   <arg name="gps_frame_id"          default="gps" />
   <arg name="sensor_frame_id"       default="camera_gray_left" />
   <arg name="is_kitti"              default="true" />
-  
+  <arg name="add_gps_noise"         default="true" />
 
   <!-- Play the bagfile, note the rename of topics-->
   <node pkg="rosbag" type="play" name="rosbag" 
@@ -45,7 +45,7 @@
     <param name="info_topic"            value="/stereo_slam/info"/>
     <param name="publish_tf"            value="true"/>
     <param name="is_kitti"              value="$(arg is_kitti)"/>
-
+    <param name="add_gps_noise"         value="$(arg add_gps_noise)"/>
   </node>
 
   <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="viso2_slam" output="screen" ns="gps" >
