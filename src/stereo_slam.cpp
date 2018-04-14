@@ -1,7 +1,5 @@
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
-#include <nav_msgs/Path.h>
-#include <geometry_msgs/PoseStamped.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_ros/point_cloud.h>
@@ -55,8 +53,6 @@ private:
 
   ros::Publisher point_cloud_pub_;
   ros::Publisher info_pub_;
-  // ros::Publisher path_pub_;
-  // nav_msgs::Path trajectory_msg_;
 
   bool got_lost_;
 
@@ -86,7 +82,6 @@ public:
 
     point_cloud_pub_ = local_nh.advertise<PointCloud>("point_cloud", 1);
     info_pub_ = local_nh.advertise<VisoInfo>("info", 1);
-    // path_pub_ = local_nh.advertise<nav_msgs::Path>("trajectory", 1, true);
 
     reference_motion_ = Matrix::eye(4);
     global_transform_.setIdentity();
@@ -168,7 +163,6 @@ protected:
         tf::Transform delta_transform;
         delta_transform.setIdentity();
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
-        // updateAndPublishTrajectory(delta_transform, l_image_msg->header);
       }
     }
     else
@@ -207,7 +201,6 @@ protected:
         setTwistCovariance(STANDARD_TWIST_COVARIANCE);
 
         integrateAndPublish(delta_transform, l_image_msg->header.stamp);
-        // updateAndPublishTrajectory(delta_transform, l_image_msg->header);
 
         if (point_cloud_pub_.getNumSubscribers() > 0)
         {
@@ -333,29 +326,6 @@ protected:
       ROS_ERROR("cv_bridge exception: %s", e.what());
     }
   }
-
-  // void updateAndPublishTrajectory(tf::Transform delta_transform, std_msgs::Header header)
-  // {
-  //   global_transform_ *= delta_transform;
-  //   tf::Vector3 global_position = global_transform_.getOrigin();
-  //   tf::Matrix3x3 global_rotation = global_transform_.getBasis();
-  //   tf::Quaternion global_quaternion;
-  //   global_rotation.getRotation(global_quaternion);
-
-  //   geometry_msgs::PoseStamped pose_msg;
-  //   pose_msg.header = header;
-  //   pose_msg.pose.position.x = global_position.x();
-  //   pose_msg.pose.position.y = global_position.y();
-  //   pose_msg.pose.position.z = global_position.z();
-  //   pose_msg.pose.orientation.x = global_quaternion.x();
-  //   pose_msg.pose.orientation.y = global_quaternion.y();
-  //   pose_msg.pose.orientation.z = global_quaternion.z();
-  //   pose_msg.pose.orientation.w = global_quaternion.w();
-
-  //   trajectory_msg_.poses.push_back(pose_msg);
-  //   trajectory_msg_.header = header;
-  //   path_pub_.publish(trajectory_msg_);
-  // }
 };
 
 } // end of namespace

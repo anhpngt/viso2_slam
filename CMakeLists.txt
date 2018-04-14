@@ -10,7 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge 
   image_geometry 
   tf 
-  pcl_ros 
+  pcl_ros
+  pcl_conversions
   std_srvs
   message_generation
 )
@@ -20,7 +21,9 @@ find_package(PCL REQUIRED QUIET)
 find_package(Boost REQUIRED QUIET COMPONENTS signals thread)
 find_package(Ceres REQUIRED QUIET)
 
-add_message_files(DIRECTORY msg FILES VisoInfo.msg)
+add_message_files(
+  DIRECTORY msg 
+    FILES VisoInfo.msg BoolStamped.msg)
 
 generate_messages(
   DEPENDENCIES std_msgs
@@ -38,11 +41,11 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 add_library(libviso2
   include/filter.cpp
-  include/kalman.cpp
   include/matcher.cpp
   include/matrix.cpp
   include/reconstruction.cpp
@@ -54,9 +57,12 @@ add_library(libviso2
   
 add_executable(stereo_slam src/stereo_slam.cpp)
 add_executable(pose_optimizer src/pose_optimizer.cpp)
+add_executable(mapper src/mapper.cpp)
 
 add_dependencies(stereo_slam ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 add_dependencies(pose_optimizer ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+add_dependencies(mapper ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 
 target_link_libraries(stereo_slam libviso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 target_link_libraries(pose_optimizer ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
+target_link_libraries(mapper ${catkin_LIBRARIES} ${PCL_LIBRARIES})

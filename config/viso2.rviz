@@ -72,7 +72,15 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          {}
+          base_link:
+            camera_gray_left:
+              {}
+          camera_left:
+            {}
+          gps:
+            {}
+          odom:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -100,7 +108,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.100000001
       Style: Flat Squares
-      Topic: /stereo_slam/point_cloud
+      Topic: /mapper/map
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -211,25 +219,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 34.3861771
+      Distance: 1012.99451
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 383.209381
+        Y: -102.22451
+        Z: -142.221344
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.785398185
-      Target Frame: kitti
+      Pitch: 0.834796488
+      Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.785398185
+      Yaw: 3.05946398
     Saved: ~
 Window Geometry:
   Displays:
@@ -249,5 +257,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1855
-  X: 1985
+  X: 65
   Y: 24

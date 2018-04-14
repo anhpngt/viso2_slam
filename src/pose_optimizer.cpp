@@ -6,6 +6,7 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 
+#include <viso2_slam/BoolStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav_msgs/Path.h>
@@ -17,8 +18,8 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
-#include <kalman.h>
 #include "pose_graph_3d_error_term.h"
+#include "kalman.h"
 
 using namespace std;
 
@@ -36,10 +37,11 @@ private:
   typedef message_filters::Synchronizer<poseSyncPolicy> poseSync;
   boost::shared_ptr<poseSync> pose_sync_;
 
-  ros::Subscriber gps_sub_; // GPS data
-  ros::Subscriber kitti_tf_sub_; // subscribe to kitti ground-truth pose and convert to gps data
-  ros::Publisher optimized_pose_pub_; // i dunno whats this for
+  ros::Subscriber gps_sub_;           // GPS data
+  ros::Subscriber kitti_tf_sub_;      // subscribe to kitti ground-truth pose and convert to gps data
+  ros::Publisher optimized_pose_pub_;
   ros::Publisher optimized_trajectory_pub_;
+  ros::Publisher new_optimization_pub_;
   tf::TransformBroadcaster tf_broadcaster_;
 
   bool publish_tf_;
@@ -71,7 +73,7 @@ private:
   Optimizer::VectorofPoses optimizer_poses_;
   Optimizer::VectorOfConstraints optimizer_constraints_;
   size_t total_optimized_size_;
-  ceres::Problem *optimizer_problem_ = new ceres::Problem;
+  ceres::Problem *optimizer_problem_ = new ceres::Problem; // BROKEN
   ceres::Solver::Options optimizer_options_;
   ceres::Solver::Summary optimizer_summary_;
 
@@ -112,13 +114,14 @@ public:
     }
     else
     {
-      ROS_INFO("Working with NTU dataset: Receiving data from true GPS sensor.");
+      ROS_WARN("Working with NTU dataset: Receiving data from true GPS sensor.");
       gps_sub_ = nh.subscribe("/dji_sdk/gps_pose", queue_size_, &PoseOptimizer::gpsCallback, this);
     }
 
     // Result publisher
     optimized_pose_pub_ = local_nh.advertise<geometry_msgs::PoseStamped>("optimized_pose", 1);
     optimized_trajectory_pub_ = local_nh.advertise<nav_msgs::Path>("trajectory", 1, true);
+    new_optimization_pub_ = local_nh.advertise<viso2_slam::BoolStamped>("optimization", 1);
     trajectory_msg_.header.frame_id = odom_frame_id_;
 
     // Optimizer
@@ -169,11 +172,6 @@ private:
 
     // Transform pose from odom frame to optimized frame
     tf::Transform current_pose = last_optimized_pose_ * (last_raw_pose_.inverse() * new_vo_tf);
-    // double x,y,z,rl,pt,yw;
-    // x = current_pose.getOrigin().x();
-    // y = current_pose.getOrigin().y();
-    // z = current_pose.getOrigin().z();
-    // current_pose.getBasis().getRPY(rl, pt, yw, 1);
     tf::Vector3 current_p = current_pose.getOrigin();   
     tf::Quaternion current_q = current_pose.getRotation();
     Eigen::Vector3d eigen_p(current_p.x(), current_p.y(), current_p.z());
@@ -181,7 +179,7 @@ private:
 
     tf::Transform current_gps_pose = getInterpolatedGPSPose(new_vo_time);
     tf::Transform pose_discrepancy = current_gps_pose.inverse() * current_pose;
-    if(pose_discrepancy.getOrigin().length() > 10 && optimizer_poses_.size() > 50)
+    if(pose_discrepancy.getOrigin().length() > 4 && optimizer_poses_.size() > 50)
     {
       // Change final pose to GPS
       tf::Vector3 current_gps_p = current_gps_pose.getOrigin();
@@ -222,6 +220,11 @@ private:
       last_optimized_pose_ = current_gps_pose;
       total_optimized_size_ += optimizer_poses_.size();
       optimizer_poses_.clear();
+
+      viso2_slam::BoolStamped bool_msg;
+      bool_msg.header = trajectory_msg_.header;
+      bool_msg.data = true;
+      new_optimization_pub_.publish(bool_msg);
     }
     else // VO has not drift that much
     {
@@ -250,9 +253,15 @@ private:
       new_pose_msg.pose.orientation.z = eigen_q.z();
       new_pose_msg.pose.orientation.w = eigen_q.w();
       trajectory_msg_.poses.push_back(new_pose_msg);
+
+      viso2_slam::BoolStamped bool_msg;
+      bool_msg.header = trajectory_msg_.header;
+      bool_msg.data = false;
+      new_optimization_pub_.publish(bool_msg);
     }
     
     optimized_trajectory_pub_.publish(trajectory_msg_);
+    optimized_pose_pub_.publish(trajectory_msg_.poses.back());
 
     // Update previous
     prev_pose_ = new_vo_tf;

@@ -13,9 +13,11 @@
 
 #pragma once
 
-class KalmanFilter {
-
-public:
+namespace PoseOptimizer
+{
+class PoseKalmanFilter
+{
+ public:
 
   /**
   * Create a Kalman filter with the specified matrices.
@@ -25,7 +27,7 @@ public:
   *   R - Measurement noise covariance
   *   P - Estimate error covariance
   */
-  KalmanFilter(
+  PoseKalmanFilter(
       double dt,
       const Eigen::MatrixXd& A,
       const Eigen::MatrixXd& C,
@@ -37,7 +39,7 @@ public:
   /**
   * Create a blank estimator.
   */
-  KalmanFilter();
+  PoseKalmanFilter();
 
   /**
   * Initialize the filter with initial states as zero.
@@ -67,7 +69,7 @@ public:
   Eigen::VectorXd state() { return x_hat; };
   double time() { return t; };
 
-private:
+ private:
 
   // Matrices for computation
   Eigen::MatrixXd A, C, Q, R, P, K, P0;
@@ -90,3 +92,4 @@ private:
   // Estimated states
   Eigen::VectorXd x_hat, x_hat_new;
 };
+} // namespace PoseOptimizer

@@ -11,7 +11,7 @@
   <arg name="gps_frame_id"          default="gps" />
   <arg name="sensor_frame_id"       default="camera_gray_left" />
   <arg name="is_kitti"              default="true" />
-  <arg name="add_gps_noise"         default="true" />
+  <arg name="add_gps_noise"         default="false" />
 
   <!-- Play the bagfile, note the rename of topics-->
   <node pkg="rosbag" type="play" name="rosbag" 
@@ -46,6 +46,10 @@
     <param name="publish_tf"            value="true"/>
     <param name="is_kitti"              value="$(arg is_kitti)"/>
     <param name="add_gps_noise"         value="$(arg add_gps_noise)"/>
+  </node>
+
+  <node pkg="viso2_slam" type="mapper" name="mapper" output="screen" >
+    <param name="odom_frame_id"         value="$(arg world_frame_id)"/>
   </node>
 
   <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="viso2_slam" output="screen" ns="gps" >
