@@ -10,6 +10,7 @@
 */
 
 #include <Eigen/Dense>
+#include <tf/transform_datatypes.h>
 
 #pragma once
 
@@ -49,6 +50,11 @@ class PoseKalmanFilter
   /**
   * Initialize the filter with a guess for initial states.
   */
+  void init(double t0, const tf::Transform& tf_x0);
+
+  /**
+  * Initialize the filter with a guess for initial states.
+  */
   void init(double t0, const Eigen::VectorXd& x0);
 
   /**
@@ -62,6 +68,17 @@ class PoseKalmanFilter
   * using the given time step and dynamics matrix.
   */
   void update(const Eigen::VectorXd& y, double dt, const Eigen::MatrixXd A);
+
+  /**
+  * Update the estimated state based on measured values,
+  * using the given time step and dynamics matrix.
+  */
+  void update(const tf::Transform& tf_y, double current_time);
+
+  /**
+   * Convert tf::Transform to 6-dof Eigen::VectorXd
+   */
+  void fromTFTransformToEigen(const tf::Transform& tf, Eigen::VectorXd& eigenvec);
 
   /**
   * Return the current state and time.
