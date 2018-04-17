@@ -276,6 +276,7 @@ private:
                                              pose_msg.pose.pose.orientation.z, pose_msg.pose.pose.orientation.w);
     tf::Transform gps_pose = tf::Transform(gps_quat, gps_xyz);
 
+    // TODO: Add Kalman Filtering
     if(!is_initialized)
     {
       gps_diff_time_ = ros::Duration(0.1);
@@ -376,11 +377,11 @@ private:
     // We assume the start frame and end frame are the two ends of the loop
     int endID = NonCorrectedSim3.size()-1;
     
-    for(size_t i=0, iend=NonCorrectedSim3.size(); i<iend;i++)
+    for(size_t i = 0, i_end = NonCorrectedSim3.size(); i < i_end; ++i)
       poses[i] = NonCorrectedSim3[i];
 
-    // edges (constraint just between two neighboring scans)
-    for(size_t i=0, iend=NonCorrectedSim3.size()-1; i<iend;i++)
+    // Edges (constraint just between two neighboring scans)
+    for(size_t i = 0, i_end = NonCorrectedSim3.size() - 1; i < i_end; ++i)
     {
       const Optimizer::Pose3d Swi = poses[i];
       const Optimizer::Pose3d Swj = poses[i+1];
@@ -392,7 +393,7 @@ private:
       constraints.push_back(constraint);
     }
     
-    // modify the pose of last keyframe to the corrected one
+    // Modify the pose of last keyframe to the corrected one
     poses[endID] = endCorrectedPose;
 
     ceres::LossFunction* loss_function = NULL;
@@ -418,15 +419,15 @@ private:
                   quaternion_local_parameterization);
     }
 
-    // set constant pose for start and end scans
+    // Set constant pose for start and end scans
     problem.SetParameterBlockConstant(poses[0].p.data());
     problem.SetParameterBlockConstant(poses[0].q.coeffs().data());
     problem.SetParameterBlockConstant(poses[endID].p.data());
     problem.SetParameterBlockConstant(poses[endID].q.coeffs().data());
 
-    // optimize
+    // Optimize
     ceres::Solver::Options options;
-    options.max_num_iterations = 50;  //can try more iterations if not converge
+    options.max_num_iterations = 50;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.minimizer_progress_to_stdout = false;
 
@@ -434,7 +435,7 @@ private:
     ceres::Solve(options, &problem, &summary);
 
     Optimizer::VectorofPoses CorrectedSim3;
-    for(size_t i = 0, iend = NonCorrectedSim3.size(); i < iend; i++)
+    for(size_t i = 0, i_end = NonCorrectedSim3.size(); i < i_end; ++i)
       CorrectedSim3.push_back(poses[i]);
     
     return CorrectedSim3;
