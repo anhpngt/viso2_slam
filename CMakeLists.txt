@@ -33,7 +33,7 @@ catkin_package(
   INCLUDE_DIRS include
 )
 
-SET(CMAKE_CXX_FLAGS "-std=c++11 -msse3 -O2 -g -Wall ${CMAKE_CXX_FLAGS}")
+SET(CMAKE_CXX_FLAGS "-std=c++11 -msse3 -O2 -g -Wall -DNDEBUG ${CMAKE_CXX_FLAGS}")
 
 include_directories(
   include
@@ -44,7 +44,7 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
 )
 
-add_library(libviso2
+add_library(viso2
   include/filter.cpp
   include/matcher.cpp
   include/matrix.cpp
@@ -53,6 +53,10 @@ add_library(libviso2
   include/viso.cpp
   include/viso_mono.cpp
   include/viso_stereo.cpp
+)
+
+add_library(kalman
+  src/kalman.cpp
 )
   
 add_executable(stereo_slam src/stereo_slam.cpp)
@@ -63,6 +67,6 @@ add_dependencies(stereo_slam ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 add_dependencies(pose_optimizer ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 add_dependencies(mapper ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 
-target_link_libraries(stereo_slam libviso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-target_link_libraries(pose_optimizer ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
+target_link_libraries(stereo_slam viso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(pose_optimizer kalman ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
 target_link_libraries(mapper ${catkin_LIBRARIES} ${PCL_LIBRARIES})

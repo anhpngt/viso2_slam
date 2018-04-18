@@ -11,7 +11,7 @@
   <arg name="gps_frame_id"          default="gps" />
   <arg name="sensor_frame_id"       default="camera_gray_left" />
   <arg name="is_kitti"              default="true" />
-  <arg name="add_gps_noise"         default="false" />
+  <arg name="add_gps_noise"         default="true" />
 
   <!-- Play the bagfile, note the rename of topics-->
   <node pkg="rosbag" type="play" name="rosbag" 
@@ -52,9 +52,9 @@
     <param name="odom_frame_id"         value="$(arg world_frame_id)"/>
   </node>
 
+  <!-- Trajectory server for gps, odometry, and kalman filtered gps -->
   <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="viso2_slam" output="screen" ns="gps" >
     <param name="/target_frame_name"    value="$(arg world_frame_id)" />
-    <!-- <param name="/source_frame_name"    value="$(arg base_link_frame_id)" /> -->
     <param name="/source_frame_name"    value="$(arg gps_frame_id)" />
     <param name="/trajectory_update_rate"   value="10.0" />
     <param name="/trajectory_publish_rate"  value="10.0" />
@@ -63,6 +63,13 @@
   <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="kitti_ground_truth" output="screen" ns="odom" >
     <param name="/target_frame_name"    value="world" />
     <param name="/source_frame_name"    value="odom" />
+    <param name="/trajectory_update_rate"   value="10.0" />
+    <param name="/trajectory_publish_rate"  value="10.0" />
+  </node>
+
+  <node pkg="hector_trajectory_server" type="hector_trajectory_server" name="gps_filtered" output="screen" ns="kalman" >
+    <param name="/target_frame_name"    value="world" />
+    <param name="/source_frame_name"    value="kalman" />
     <param name="/trajectory_update_rate"   value="10.0" />
     <param name="/trajectory_publish_rate"  value="10.0" />
   </node>

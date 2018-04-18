@@ -15,7 +15,6 @@
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
-#include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
 #include "pose_graph_3d_error_term.h"
@@ -46,7 +45,7 @@ private:
 
   bool publish_tf_;
   bool is_kitti_;
-  bool add_gps_noise_;      // Whether to add noise to simulated GPS by Kitti
+  bool add_gps_noise_, is_gps_noisy_;      // Whether to add noise to simulated GPS by Kitti
   int queue_size_;
   std::string odom_frame_id_, base_link_frame_id_, gps_frame_id_;
   std::string viso2_pose_topic_, viso2_info_topic_;
@@ -62,12 +61,13 @@ private:
   tf::Transform gps_diff_pose_;
   ros::Time last_pose_time_, last_gps_time_;
   ros::Duration gps_diff_time_;
+  PoseKalmanFilter kalman_;
 
   std::random_device rd_{};
   std::mt19937 rd_generator_{rd_()}; 
   // std::default_random_engine rd_generator_;
   std::normal_distribution<> p_noise_{0., 0.5};
-  // std::normal_distribution<> q_noise_{0., 1. / 180. * 3.141592653589793238463};
+  std::normal_distribution<> q_noise_{0., 1. / 180. * 3.141592653589793238463};
 
   // Optimizer
   Optimizer::VectorofPoses optimizer_poses_;
@@ -101,13 +101,54 @@ public:
     pose_sync_->registerCallback(boost::bind(&PoseOptimizer::viso2PoseCallback, this, _1, _2));
 
     // Callbacks/Subscribers
+    is_gps_noisy_ = false;
     if(is_kitti_)
     {
       ROS_INFO("Working with KITTI dataset: Simulating GPS and IMU data based on /tf topic.");
       if(add_gps_noise_)
       {
-        ROS_WARN("Gaussian noise will be added to GPS data");
+        ROS_WARN("Gaussian noise will be added to GPS data.");
         kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFWithNoiseCallback, this);
+
+        // Add covariance matrix for Kalman Filter
+        // TODO: find a better covariance matrix for better noise estimation
+        Eigen::MatrixXd Q(18, 18);      // Process noise covariance
+        Eigen::MatrixXd R(6, 6);        // Measurement noise covariance
+        Eigen::MatrixXd P(18, 18);      // Estimate error covariance
+
+        Q << 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5;
+
+        R << 5.5, 0, 0, 0, 0, 0,
+             0, 5.5, 0, 0, 0, 0,
+             0, 0, 5.5, 0, 0, 0,
+             0, 0, 0, 5.5, 0, 0,
+             0, 0, 0, 0, 5.5, 0,
+             0, 0, 0, 0, 0, 5.5;
+
+        P = Eigen::MatrixXd::Identity(18, 18);
+
+        kalman_ = PoseKalmanFilter(0.1,
+                                   Eigen::MatrixXd::Zero(18, 18),
+                                   Eigen::MatrixXd::Zero(6, 18),
+                                   Q, R, P);
+        is_gps_noisy_ = true;
       }
       else
         kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFCallback, this);
@@ -282,9 +323,18 @@ private:
       gps_diff_time_ = ros::Duration(0.1);
       gps_diff_pose_ = tf::Transform::getIdentity();
       is_initialized = true;
+      if(is_gps_noisy_)
+      {
+        kalman_.init(current_time.toSec(), gps_pose);
+      }
     }
     else
     {
+      if(is_gps_noisy_)
+      {
+        kalman_.update(current_time.toSec(), gps_pose);
+        tf_broadcaster_.sendTransform(tf::StampedTransform(kalman_.getPoseState(), current_time, odom_frame_id_, "kalman"));
+      }
       gps_diff_time_ = current_time - last_gps_time_;
       gps_diff_pose_ = last_gps_pose_.inverse() * gps_pose;
     }
@@ -348,12 +398,12 @@ private:
                                   tf_msg->transforms[i].transform.rotation.z,
                                   tf_msg->transforms[i].transform.rotation.w);
 
-        // double rl, pt, yw;
-        // tf::Matrix3x3(kitti_quat).getRPY(rl, pt, yw, 1);
-        // rl += q_noise_(rd_generator_);
-        // pt += q_noise_(rd_generator_);
-        // yw += q_noise_(rd_generator_);
-        // kitti_quat.setRPY(rl, pt, yw);
+        double rl, pt, yw;
+        tf::Matrix3x3(kitti_quat).getRPY(rl, pt, yw, 1);
+        rl += q_noise_(rd_generator_);
+        pt += q_noise_(rd_generator_);
+        yw += q_noise_(rd_generator_);
+        kitti_quat.setRPY(rl, pt, yw);
         gps_pose.pose.pose.orientation.x = kitti_quat.z();
         gps_pose.pose.pose.orientation.y = -kitti_quat.x();
         gps_pose.pose.pose.orientation.z = -kitti_quat.y();
