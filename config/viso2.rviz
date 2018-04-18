@@ -133,7 +133,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz/Path
       Color: 25; 255; 0
-      Enabled: false
+      Enabled: true
       Head Diameter: 0.300000012
       Head Length: 0.200000003
       Length: 0.300000012
@@ -151,7 +151,7 @@ Visualization Manager:
       Shaft Length: 0.100000001
       Topic: /gps/trajectory
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -246,25 +246,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1109.48755
+      Distance: 37.9674301
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 185.026428
-        Y: 40.9919434
-        Z: -181.214417
-      Focal Shape Fixed Size: true
+        X: 12.2832327
+        Y: -0.478649467
+        Z: 0.457817376
+      Focal Shape Fixed Size: false
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 1.56979632
+      Pitch: 0.925398111
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.81359172
+      Yaw: 2.04039764
     Saved: ~
 Window Geometry:
   Displays:

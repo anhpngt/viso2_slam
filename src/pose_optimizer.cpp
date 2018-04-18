@@ -333,7 +333,8 @@ private:
       if(is_gps_noisy_)
       {
         kalman_.update(current_time.toSec(), gps_pose);
-        tf_broadcaster_.sendTransform(tf::StampedTransform(kalman_.getPoseState(), current_time, odom_frame_id_, "kalman"));
+        tf_broadcaster_.sendTransform(tf::StampedTransform(gps_pose, current_time, odom_frame_id_, gps_frame_id_));
+        gps_pose = kalman_.getPoseState();
       }
       gps_diff_time_ = current_time - last_gps_time_;
       gps_diff_pose_ = last_gps_pose_.inverse() * gps_pose;
@@ -342,7 +343,7 @@ private:
     last_gps_pose_ = gps_pose;
     last_gps_time_ = current_time;
 
-    tf_broadcaster_.sendTransform(tf::StampedTransform(gps_pose, current_time, odom_frame_id_, gps_frame_id_));
+    tf_broadcaster_.sendTransform(tf::StampedTransform(gps_pose, current_time, odom_frame_id_, "kalman"));
   }
 
   void kittiTFCallback(const tf::tfMessage::ConstPtr& tf_msg)
