@@ -18,16 +18,199 @@
 #include <message_filters/sync_policies/approximate_time.h>
 
 #include "pose_graph_3d_error_term.h"
-#include "kalman.h"
+#include <Eigen/Dense>
 
 using namespace std;
 
 namespace viso2_slam
 {
+class PoseKalmanFilter
+{
+ private:
+  // Matrices for computation
+  Eigen::MatrixXd A_, H_, Q_, R_, P_, P0_;
+  Eigen::MatrixXd I_;
+
+  // System dimensions
+  int m_, n_;
+
+  // Initial and current time
+  double t0_, t_;
+  double dt_;
+
+  // Check initialization
+  bool initialized_;
+
+  // Estimated states
+  Eigen::VectorXd x_hat_, x_hat_new_;
+  
+ public:
+  /**
+   * Create a Kalman filter with the specified matrices.
+   *   A - System dynamics matrix
+   *   H - To output measurement matrix from state matrix
+   *   Q - Process noise covariance
+   *   R - Measurement noise covariance
+   *   P - Estimate error covariance
+   */
+  PoseKalmanFilter(double dt,
+                   const Eigen::MatrixXd& A,
+                   const Eigen::MatrixXd& H,
+                   const Eigen::MatrixXd& Q,
+                   const Eigen::MatrixXd& R,
+                   const Eigen::MatrixXd& P)
+  : A_(A), H_(H), Q_(Q), R_(R), P_(P), P0_(P), I_(n_, n_),
+    m_(H_.rows()), n_(A.rows()), dt_(dt), initialized_(false),
+    x_hat_(n_), x_hat_new_(n_)
+  {
+    if(Q.rows() != 18 || Q.cols() != 18)
+      cout << "[KalmanFilter] WARN: <Q> has invalid dimension!" << endl;
+    if(R.rows() != 6 || R.cols() != 6)
+      cout << "[KalmanFilter] WARN: <R> has invalid dimension!" << endl;
+    if(P.rows() != 18 || P.cols() != 18)
+      cout << "[KalmanFilter] WARN: <P> has invalid dimension!" << endl;
+    if(m_ != 6 || n_ != 18)
+      cout << "[KalmanFilter] WARN: System dimensions are invalid!" << endl;
+    A_ = createSystemDynamics(dt);
+    H_ = Eigen::MatrixXd::Identity(6, 18);
+    I_ = Eigen::MatrixXd::Identity(18, 18);
+  };
+
+  PoseKalmanFilter() {};
+
+  /**
+   * Initialization. Required.
+   */
+  void init()
+  {
+    x_hat_.setZero();
+    t0_ = 0;
+    t_ = 0;
+    initialized_ = true;
+  }
+
+  void init(const double t0, const Eigen::VectorXd& x0)
+  {
+    x_hat_ = x0;
+    t0_ = t0;
+    t_ = t0;
+    initialized_ = true;
+  }
+
+  void init(const double t0, const tf::Transform& tf_z0)
+  {
+    Eigen::VectorXd x0 = Eigen::VectorXd::Zero(18);
+    x0.head(6) = fromTFTransformToEigen(tf_z0);
+    init(t0, x0);
+  }
+
+  /**
+   * Update the estimated state with measurement value.
+   */
+  void update(const Eigen::VectorXd& z)
+  {
+    if(!initialized_)
+      throw std::runtime_error("Filter is not initialized!");
+
+    x_hat_new_ = A_ * x_hat_;
+    P_ = A_ * P_ * A_.transpose() + Q_;
+    Eigen::MatrixXd K = P_ * H_.transpose() * (H_ * P_ * H_.transpose() + R_).inverse();
+    x_hat_new_ += K * (z - H_ * x_hat_new_);
+    P_ = (I_ - K * H_) * P_;
+    x_hat_ = x_hat_new_;
+  }
+  
+  void update(const double dt, const Eigen::VectorXd& z, const Eigen::MatrixXd& A)
+  {
+    A_ = A;
+    dt_ = dt;
+    t_ += dt_;
+    update(z);
+  }
+  
+  void update(const double t, const tf::Transform& tf_z)
+  {
+    double dt = t - t_;
+    t_ = t;
+    A_ = createSystemDynamics(dt);
+    Eigen::VectorXd z = fromTFTransformToEigen(tf_z);
+    update(z);
+  }
+
+  /**
+   * Return the current state.
+   */
+  Eigen::VectorXd getRawState() {return x_hat_;}
+  
+  tf::Transform getPoseState()
+  {
+    tf::Vector3 x_pos(x_hat_[0], x_hat_[1], x_hat_[2]);
+    tf::Quaternion x_quat;
+    x_quat.setRPY(x_hat_[3], x_hat_[4], x_hat_[5]);
+    return tf::Transform(x_quat, x_pos);
+  }
+  
+  double getTime() {return t_;}
+
+ private:
+
+  /**
+   * Create a new System dynamic matrix from new dt
+   */
+  Eigen::MatrixXd createSystemDynamics(double dt)
+  {
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(18, 18);
+    double dt2 = dt * dt / 2;
+    A(0, 6)   = dt;
+    A(1, 7)   = dt;
+    A(2, 8)   = dt;
+    A(3, 9)   = dt;
+    A(4, 10)  = dt;
+    A(5, 11)  = dt;
+    A(6, 12)  = dt;
+    A(7, 13)  = dt;
+    A(8, 14)  = dt;
+    A(9, 15)  = dt;
+    A(10, 16) = dt;
+    A(11, 17) = dt;
+    A(0, 12) = dt2;
+    A(1, 13) = dt2;
+    A(2, 14) = dt2;
+    A(3, 15) = dt2;
+    A(4, 16) = dt2;
+    A(5, 17) = dt2;
+    return A;
+  }
+
+  /**
+   * Convert tf::Transform to 6-dof Eigen::VectorXd
+   */
+  void fromTFTransformToEigen(const tf::Transform& tf, Eigen::VectorXd& eigenvec)
+  {
+    eigenvec = Eigen::VectorXd(6);
+    tf::Vector3 tf_xyz = tf.getOrigin();
+    eigenvec[0] = tf_xyz.x();
+    eigenvec[1] = tf_xyz.y();
+    eigenvec[2] = tf_xyz.z();
+    tf.getBasis().getRPY(eigenvec[3], eigenvec[4], eigenvec[5], 1);
+  }
+
+  Eigen::VectorXd fromTFTransformToEigen(const tf::Transform& tf)
+  {
+    Eigen::VectorXd eigenvec = Eigen::VectorXd(6);
+    tf::Vector3 tf_xyz = tf.getOrigin();
+    eigenvec[0] = tf_xyz.x();
+    eigenvec[1] = tf_xyz.y();
+    eigenvec[2] = tf_xyz.z();
+    tf.getBasis().getRPY(eigenvec[3], eigenvec[4], eigenvec[5], 1);
+    return eigenvec;
+  }
+}; // class PoseKalmanFilter
+
 class PoseOptimizer
 {
 
-private:
+ private:
 
   // Initialization variables
   message_filters::Subscriber<geometry_msgs::PoseStamped> pose_sub_;
@@ -53,7 +236,7 @@ private:
 
   // Processing/Data variables
   bool is_vo_lost_;
-  bool is_initialized;
+  bool is_initialized_;
   tf::Transform last_raw_pose_;           // Last optimized pose, pre-optimized
   tf::Transform last_optimized_pose_;     // Last optimized pose, pro-optimized
   tf::Transform last_gps_pose_;
@@ -77,7 +260,7 @@ private:
   ceres::Solver::Options optimizer_options_;
   ceres::Solver::Summary optimizer_summary_;
 
-public:
+ public:
 
   PoseOptimizer()
   {
@@ -173,7 +356,7 @@ public:
 
     // Data initialization
     is_vo_lost_ = false;
-    is_initialized = false;
+    is_initialized_ = false;
     last_raw_pose_ = tf::Transform::getIdentity();
     last_optimized_pose_ = tf::Transform::getIdentity();
     last_gps_pose_ = tf::Transform::getIdentity();
@@ -189,7 +372,7 @@ public:
     // }
   }
 
-private:
+ private:
 
   void viso2PoseCallback(const geometry_msgs::PoseStamped::ConstPtr &pose_msg, const viso2_slam::VisoInfo::ConstPtr &info_msg)
   {
@@ -318,11 +501,11 @@ private:
     tf::Transform gps_pose = tf::Transform(gps_quat, gps_xyz);
 
     // TODO: Add Kalman Filtering
-    if(!is_initialized)
+    if(!is_initialized_)
     {
       gps_diff_time_ = ros::Duration(0.1);
       gps_diff_pose_ = tf::Transform::getIdentity();
-      is_initialized = true;
+      is_initialized_ = true;
       if(is_gps_noisy_)
       {
         kalman_.init(current_time.toSec(), gps_pose);
@@ -492,44 +675,42 @@ private:
     return CorrectedSim3;
   }
 
-  void solveOptimizationProblem() // BROKEN, DO NOT USE!
-  {
-    ceres::LossFunction* loss_function = NULL;
-    ceres::LocalParameterization *quaternion_local_parameterization = new ceres::EigenQuaternionParameterization;
+  // void solveOptimizationProblem() // BROKEN, DO NOT USE!
+  // {
+  //   ceres::LossFunction* loss_function = NULL;
+  //   ceres::LocalParameterization *quaternion_local_parameterization = new ceres::EigenQuaternionParameterization;
 
-    for(Optimizer::VectorOfConstraints::const_iterator constraints_iter = optimizer_constraints_.begin(); constraints_iter != optimizer_constraints_.end(); ++constraints_iter)
-    {
-      const Optimizer::Constraint3d& constraint = *constraints_iter;
-      const Eigen::Matrix<double, 6, 6> sqrt_information = constraint.information.llt().matrixL();
-      // Ceres will take ownership of the pointer.
-      ceres::CostFunction* cost_function = Optimizer::PoseGraph3dErrorTerm::Create(constraint.t_be, sqrt_information);
+  //   for(Optimizer::VectorOfConstraints::const_iterator constraints_iter = optimizer_constraints_.begin(); constraints_iter != optimizer_constraints_.end(); ++constraints_iter)
+  //   {
+  //     const Optimizer::Constraint3d& constraint = *constraints_iter;
+  //     const Eigen::Matrix<double, 6, 6> sqrt_information = constraint.information.llt().matrixL();
+  //     // Ceres will take ownership of the pointer.
+  //     ceres::CostFunction* cost_function = Optimizer::PoseGraph3dErrorTerm::Create(constraint.t_be, sqrt_information);
 
-      optimizer_problem_->AddResidualBlock(cost_function, loss_function,
-                            optimizer_poses_[constraint.id_begin].p.data(),
-                            optimizer_poses_[constraint.id_begin].q.coeffs().data(),
-                            optimizer_poses_[constraint.id_end].p.data(),
-                            optimizer_poses_[constraint.id_end].q.coeffs().data());
+  //     optimizer_problem_->AddResidualBlock(cost_function, loss_function,
+  //                           optimizer_poses_[constraint.id_begin].p.data(),
+  //                           optimizer_poses_[constraint.id_begin].q.coeffs().data(),
+  //                           optimizer_poses_[constraint.id_end].p.data(),
+  //                           optimizer_poses_[constraint.id_end].q.coeffs().data());
 
-      optimizer_problem_->SetParameterization(optimizer_poses_[constraint.id_begin].q.coeffs().data(),
-                                              quaternion_local_parameterization);
-      optimizer_problem_->SetParameterization(optimizer_poses_[constraint.id_end].q.coeffs().data(),
-                                              quaternion_local_parameterization);
-    }
-    optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[0].p.data());
-    optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[0].q.coeffs().data());
-    optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[optimizer_poses_.size()-1].p.data());
-    optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[optimizer_poses_.size()-1].q.coeffs().data());
+  //     optimizer_problem_->SetParameterization(optimizer_poses_[constraint.id_begin].q.coeffs().data(),
+  //                                             quaternion_local_parameterization);
+  //     optimizer_problem_->SetParameterization(optimizer_poses_[constraint.id_end].q.coeffs().data(),
+  //                                             quaternion_local_parameterization);
+  //   }
+  //   optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[0].p.data());
+  //   optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[0].q.coeffs().data());
+  //   optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[optimizer_poses_.size()-1].p.data());
+  //   optimizer_problem_->SetParameterBlockConstant(optimizer_poses_[optimizer_poses_.size()-1].q.coeffs().data());
 
-    // Optimize graph, resulting pose will remain in optimizer_poses_
-    ceres::Solve(optimizer_options_, optimizer_problem_, &optimizer_summary_);
-    ROS_INFO("Pose graph optimized!");
-    delete loss_function;
-    delete quaternion_local_parameterization;
-    cout << "dude" << endl;
-    delete optimizer_problem_;
-    optimizer_problem_ = new ceres::Problem;
-    cout << "really? " << endl;
-  }
+  //   // Optimize graph, resulting pose will remain in optimizer_poses_
+  //   ceres::Solve(optimizer_options_, optimizer_problem_, &optimizer_summary_);
+  //   ROS_INFO("Pose graph optimized!");
+  //   delete loss_function;
+  //   delete quaternion_local_parameterization;
+  //   delete optimizer_problem_;
+  //   optimizer_problem_ = new ceres::Problem;
+  // }
 
   void extractOptimizedTrajectory()
   {

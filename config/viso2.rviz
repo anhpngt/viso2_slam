@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Image
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -53,38 +53,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_link:
-          Value: true
-        camera_gray_left:
-          Value: true
-        camera_left:
-          Value: true
-        gps:
-          Value: true
-        kalman:
-          Value: true
-        odom:
-          Value: true
-        world:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        world:
-          base_link:
-            camera_gray_left:
-              {}
-          camera_left:
-            {}
-          gps:
-            {}
-          kalman:
-            {}
-          odom:
-            {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -246,25 +221,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 37.9674301
+      Distance: 75.1442413
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 12.2832327
-        Y: -0.478649467
-        Z: 0.457817376
+        X: 0
+        Y: 0
+        Z: 0
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.925398111
+      Pitch: 0.785398185
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.04039764
+      Yaw: 0.785398185
     Saved: ~
 Window Geometry:
   Displays:
