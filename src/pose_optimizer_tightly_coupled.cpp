@@ -24,15 +24,25 @@ using namespace std;
 
 namespace viso2_slam
 {
-class PoseKalmanFilter
+class PoseFusionKalmanFilter
 {
  private:
-  // Matrices for computation
-  Eigen::MatrixXd A_, H_, Q_, R_, P_, P0_;
-  Eigen::MatrixXd I_;
+  /**
+   * State matrix, 6-dof pose with 1st and 2nd derivatives
+   */
+  Eigen::VectorXd state_;
 
-  // System dimensions
-  int m_, n_;
+  /**
+   * A_         state transition matrix
+   * H_visual_  result association matrix of VO/SLAM module
+   * H_sensor_  measurement association matrix of GNSS/INS/COMPASS sensor
+   * Q_         covariance matrix of white gaussian noise in state modelling
+   * R_visual_  covariance matrix of white gaussian noise in VO/SLAM computation
+   * R_sensor_  covariance matrix of white gaussian noise in sensory observation
+   * P_         uncertainty matrix
+   */
+  Eigen::MatrixXd A_, H_visual_, H_sensor_, Q_, R_visual_, R_sensor_, P_, P0_;
+  Eigen::MatrixXd I_;
 
   // Initial and current time
   double t0_, t_;
@@ -40,58 +50,72 @@ class PoseKalmanFilter
 
   // Check initialization
   bool initialized_;
+  double pi_ = 3.14159265358979323846264338327950288;
+  double pi2_ = pi_ * 2.0;
+  double pih_ = pi_ / 2.0;
 
-  // Estimated states
-  Eigen::VectorXd x_hat_, x_hat_new_;
-  
  public:
-  /**
-   * Create a Kalman filter with the specified matrices.
-   *   A - System dynamics matrix
-   *   H - To output measurement matrix from state matrix
-   *   Q - Process noise covariance
-   *   R - Measurement noise covariance
-   *   P - Estimate error covariance
-   */
-  PoseKalmanFilter(double dt,
-                   const Eigen::MatrixXd& A,
-                   const Eigen::MatrixXd& H,
-                   const Eigen::MatrixXd& Q,
-                   const Eigen::MatrixXd& R,
-                   const Eigen::MatrixXd& P)
-  : A_(A), H_(H), Q_(Q), R_(R), P_(P), P0_(P), I_(n_, n_),
-    m_(H_.rows()), n_(A.rows()), dt_(dt), initialized_(false),
-    x_hat_(n_), x_hat_new_(n_)
+
+  PoseFusionKalmanFilter(double dt): dt_(dt), initialized_(false)
   {
-    if(Q.rows() != 12 || Q.cols() != 12)
-      cout << "[KalmanFilter] WARN: <Q> has invalid dimension!" << endl;
-    if(R.rows() != 12 || R.cols() != 12)
-      cout << "[KalmanFilter] WARN: <R> has invalid dimension!" << endl;
-    if(P.rows() != 12 || P.cols() != 12)
-      cout << "[KalmanFilter] WARN: <P> has invalid dimension!" << endl;
-    if(m_ != 12 || n_ != 12)
-      cout << "[KalmanFilter] WARN: System dimensions are invalid!" << endl;
+    state_ = Eigen::VectorXd(18);
     A_ = createSystemDynamics(dt);
-    H_ = Eigen::MatrixXd::Identity(12, 12);
-    I_ = Eigen::MatrixXd::Identity(12, 12);
+    H_visual_ = Eigen::MatrixXd::Identity(6, 18);
+    H_sensor_ = Eigen::MatrixXd::Identity(6, 18);
+    Q_ = Eigen::MatrixXd::Identity(18, 18) * 0.5;         // TODO: set a better covariance for these noises
+    Q_(6, 6) = 0.0001;
+    Q_(7, 7) = 0.0001;
+    Q_(8, 8) = 0.0001;
+    Q_(9, 9) = 0.0001;
+    Q_(10, 10) = 0.0001;
+    Q_(11, 11) = 0.0001;
+    Q_(12, 12) = 0.0001;
+    Q_(13, 13) = 0.0001;
+    Q_(14, 14) = 0.0001;
+    Q_(15, 15) = 0.0001;
+    Q_(16, 16) = 0.0001;
+    Q_(17, 17) = 0.0001;
+    R_visual_ = Eigen::MatrixXd::Identity(6, 6) * 0.05;
+    R_sensor_ = Eigen::MatrixXd::Identity(6, 6) * 0.5;
+    P_ = Eigen::MatrixXd::Identity(18, 18) * 0.5;
   };
 
-  PoseKalmanFilter() {};
+  PoseFusionKalmanFilter() {};
 
-  /**
-   * Initialization. Required.
-   */
+  /** Set noise covariance matrix */
+  void setStateCovariance(Eigen::MatrixXd Q)
+  {
+    if(Q.cols() != 18 || Q.rows() != 18)
+      throw std::runtime_error("Matrix of wrong dimensions");
+    Q_ = Q;
+  }
+
+  void setVisualMeasurementCovariance(Eigen::MatrixXd R_visual)
+  {
+    if(R_visual.cols() != 18 || R_visual.rows() != 18)
+      throw std::runtime_error("Matrix of wrong dimensions");
+    R_visual_ = R_visual;
+  }
+
+  void setSensorMeasurementCovariance(Eigen::MatrixXd R_sensor)
+  {
+    if(R_sensor.cols() != 18 || R_sensor.rows() != 18)
+      throw std::runtime_error("Matrix of wrong dimensions");
+    R_sensor_ = R_sensor;
+  }
+
+  /** Initialization. Required. */
   void init()
   {
-    x_hat_.setZero();
+    state_.setZero();
     t0_ = 0;
     t_ = 0;
     initialized_ = true;
   }
 
-  void init(const double t0, const Eigen::VectorXd& x0)
+  void init(const double t0, const Eigen::VectorXd& new_state)
   {
-    x_hat_ = x0;
+    state_ = new_state;
     t0_ = t0;
     t_ = t0;
     initialized_ = true;
@@ -99,7 +123,7 @@ class PoseKalmanFilter
 
   void init(const double t0, const tf::Transform& tf_z0)
   {
-    Eigen::VectorXd x0 = Eigen::VectorXd::Zero(12);
+    Eigen::VectorXd x0 = Eigen::VectorXd::Zero(18);
     x0.head(6) = fromTFTransformToEigen(tf_z0);
     init(t0, x0);
   }
@@ -107,66 +131,108 @@ class PoseKalmanFilter
   /**
    * Update the estimated state with measurement value.
    */
-  void update(const Eigen::VectorXd& z)
+  void update(const double t, const Eigen::VectorXd& z_visual, const Eigen::VectorXd& z_sensor)
   {
     if(!initialized_)
       throw std::runtime_error("Filter is not initialized!");
 
-    x_hat_new_ = A_ * x_hat_;
-    P_ = A_ * P_ * A_.transpose() + Q_;
-    Eigen::MatrixXd K = P_ * H_.transpose() * (H_ * P_ * H_.transpose() + R_).inverse();
-    x_hat_new_ += K * (z - H_ * x_hat_new_);
-    P_ = (I_ - K * H_) * P_;
-    x_hat_ = x_hat_new_;
+    dt_ = t - t_;
+    A_ = createSystemDynamics(dt_);
+
+    // Prediction stage
+    Eigen::VectorXd state_priori = A_ * state_;
+    Eigen::MatrixXd P_priori = A_ * P_ * A_.transpose() + Q_;
+
+    // Estimation (Correction) stage
+    P_ = (P_priori.inverse() + H_visual_.transpose() * R_visual_.inverse() * H_visual_
+                             + H_sensor_.transpose() * R_sensor_.inverse() * H_sensor_).inverse();
+    Eigen::MatrixXd K_visual = P_ * H_visual_.transpose() * R_visual_.inverse();
+    Eigen::MatrixXd K_sensor = P_ * H_sensor_.transpose() * R_sensor_.inverse();
+    state_ = state_priori + K_visual * (z_visual - H_visual_ * state_priori)
+                          + K_sensor * (z_sensor - H_sensor_ * state_priori); 
+
+    // Update variables
+    t_ = t;
+    checkStateAngle();
   }
   
-  void update(const double t, const tf::Transform& tfPose, const tf::Transform& tfDelPose)
+  void update(const double t, const tf::Transform& tf_z_visual, const tf::Transform& tf_z_sensor)
   {
-    double dt = t - t_;
-    A_ = createSystemDynamics(dt);
-    Eigen::VectorXd z(12);
-    z << fromTFTransformToEigen(tfPose), fromTFTransformToEigen(tfDelPose);
-    update(z);
-    t_ = t;
-    dt_ = dt;
+    Eigen::VectorXd z_visual = fromTFTransformToEigen(tf_z_visual);
+    Eigen::VectorXd z_sensor = fromTFTransformToEigen(tf_z_sensor);
+
+    if(z_visual[3] - state_[3] > pi_) z_visual[3] -= pi2_;
+    else if(z_visual[3] - state_[3] < -pi_) z_visual[3] += pi2_;
+    if(z_visual[4] - state_[4] > pi_) z_visual[4] -= pi2_;
+    else if(z_visual[4] - state_[4] < -pi_) z_visual[4] += pi2_;
+    if(z_visual[5] - state_[5] > pi_) z_visual[5] -= pi2_;
+    else if(z_visual[5] - state_[5] < -pi_) z_visual[5] += pi2_;
+    if(z_sensor[3] - state_[3] > pi_) z_sensor[3] -= pi2_;
+    else if(z_sensor[3] - state_[3] < -pi_) z_sensor[3] += pi2_;
+    if(z_sensor[4] - state_[4] > pi_) z_sensor[4] -= pi2_;
+    else if(z_sensor[4] - state_[4] < -pi_) z_sensor[4] += pi2_;
+    if(z_sensor[5] - state_[5] > pi_) z_sensor[5] -= pi2_;
+    else if(z_sensor[5] - state_[5] < -pi_) z_sensor[5] += pi2_;
+    update(t, z_visual, z_sensor);
   }
 
   /**
    * Return the current state.
    */
-  Eigen::VectorXd getRawState() {return x_hat_;}
+  Eigen::VectorXd getRawState() {return state_;}
   
   tf::Transform getPoseState()
   {
-    tf::Vector3 x_pos(x_hat_[0], x_hat_[1], x_hat_[2]);
-    tf::Quaternion x_quat;
-    x_quat.setRPY(x_hat_[3], x_hat_[4], x_hat_[5]);
-    return tf::Transform(x_quat, x_pos);
+    tf::Vector3 state_pos(state_[0], state_[1], state_[2]);
+    tf::Quaternion state_quat;
+    state_quat.setRPY(state_[3], state_[4], state_[5]);
+    return tf::Transform(state_quat, state_pos);
   }
   
   double getTime() {return t_;}
 
  private:
 
-  /**
-   * Create a new System dynamic matrix from new dt
-   */
+  /** Check state angle */
+  void checkStateAngle()
+  {
+    if(state_[3] > pi_) state_[3] -= pi2_;
+    else if(state_[3] < -pi_) state_[3] += pi2_;
+
+    if(state_[4] > pi_) state_[4] -= pi2_;
+    else if(state_[4] < -pi_) state_[4] += pi2_;
+
+    if(state_[5] > pi_) state_[5] -= pi2_;
+    else if(state_[5] < -pi_) state_[5] += pi2_;
+  }
+
+  /** Create a new System dynamic matrix from new dt */
   Eigen::MatrixXd createSystemDynamics(double dt)
   {
-    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(12, 12);
-    double k = dt / dt_;
-    A(0, 6)   = k;
-    A(1, 7)   = k;
-    A(2, 8)   = k;
-    A(3, 9)   = k;
-    A(4, 10)  = k;
-    A(5, 11)  = k;
+    Eigen::MatrixXd A = Eigen::MatrixXd::Identity(18, 18);
+    double dt2 = dt * dt / 2;
+    A(0, 6)   = dt;
+    A(1, 7)   = dt;
+    A(2, 8)   = dt;
+    A(3, 9)   = dt;
+    A(4, 10)  = dt;
+    A(5, 11)  = dt;
+    A(6, 12)  = dt;
+    A(7, 13)  = dt;
+    A(8, 14)  = dt;
+    A(9, 15)  = dt;
+    A(10, 16) = dt;
+    A(11, 17) = dt;
+    A(0, 12) = dt2;
+    A(1, 13) = dt2;
+    A(2, 14) = dt2;
+    A(3, 15) = dt2;
+    A(4, 16) = dt2;
+    A(5, 17) = dt2;
     return A;
   }
 
-  /**
-   * Convert tf::Transform to 6-dof Eigen::VectorXd
-   */
+  /** Convert tf::Transform to 6-dof Eigen::VectorXd */
   void fromTFTransformToEigen(const tf::Transform& tf, Eigen::VectorXd& eigenvec)
   {
     eigenvec = Eigen::VectorXd(6);
@@ -187,7 +253,7 @@ class PoseKalmanFilter
     tf.getBasis().getRPY(eigenvec[3], eigenvec[4], eigenvec[5], 1);
     return eigenvec;
   }
-}; // class PoseKalmanFilter
+}; // class PoseFusionKalmanFilter
 
 class PoseOptimizer
 {
@@ -226,7 +292,7 @@ class PoseOptimizer
   tf::Transform gps_diff_pose_;
   ros::Time last_pose_time_, last_gps_time_;
   ros::Duration gps_diff_time_;
-  PoseKalmanFilter kalman_;
+  PoseFusionKalmanFilter kalman_;
 
   std::random_device rd_{};
   std::mt19937 rd_generator_{rd_()}; 
@@ -274,44 +340,7 @@ class PoseOptimizer
       {
         ROS_WARN("Gaussian noise will be added to GPS data.");
         kitti_tf_sub_ = nh.subscribe("/tf", queue_size_, &PoseOptimizer::kittiTFWithNoiseCallback, this);
-
-        // Add covariance matrix for Kalman Filter
-        Eigen::MatrixXd Q(12, 12);      // Process noise covariance
-        Eigen::MatrixXd R(12, 12);      // Measurement noise covariance
-        Eigen::MatrixXd P(12, 12);      // Estimate error covariance
-
-        Q << 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5;
-
-        R << 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0.001, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0.001, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0.001, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.001, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.001;
-
-        P = Eigen::MatrixXd::Identity(12, 12);
-
-        kalman_ = PoseKalmanFilter(0.1,
-                                   Eigen::MatrixXd::Zero(12, 12),
-                                   Eigen::MatrixXd::Zero(12, 12),
-                                   Q, R, P);
+        kalman_ = PoseFusionKalmanFilter(0.1);
         is_gps_noisy_ = true;
       }
       else
@@ -385,9 +414,8 @@ class PoseOptimizer
     if(!is_gps_lost_ && is_initialized_) // KF applied
     {
       tf::Transform current_gps_pose = getInterpolatedGPSPose(new_vo_time);
-      tf::Transform relative_vo_pose = prev_pose_.inverse() * new_vo_tf;
 
-      kalman_.update(new_vo_time.toSec(), current_gps_pose, relative_vo_pose);
+      kalman_.update(new_vo_time.toSec(), current_pose, current_gps_pose);
       tf::Transform filtered_pose = kalman_.getPoseState();
 
       // Add pose to trajectory

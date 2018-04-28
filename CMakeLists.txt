@@ -60,16 +60,16 @@ add_library(viso2
 # )
   
 add_executable(stereo_slam src/stereo_slam.cpp)
-add_executable(pose_optimizer_raw src/pose_optimizer_raw.cpp)
-add_executable(pose_optimizer_fused src/pose_optimizer_fused.cpp)
+add_executable(pose_optimizer_loosely_coupled src/pose_optimizer_loosely_coupled.cpp)
+add_executable(pose_optimizer_tightly_coupled src/pose_optimizer_tightly_coupled.cpp)
 add_executable(mapper src/mapper.cpp)
 
 add_dependencies(stereo_slam ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
-add_dependencies(pose_optimizer_raw ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
-add_dependencies(pose_optimizer_fused ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+add_dependencies(pose_optimizer_loosely_coupled ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
+add_dependencies(pose_optimizer_tightly_coupled ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 add_dependencies(mapper ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencpp)
 
 target_link_libraries(stereo_slam viso2 ${OpenCV_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-target_link_libraries(pose_optimizer_raw ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
-target_link_libraries(pose_optimizer_fused ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
+target_link_libraries(pose_optimizer_loosely_coupled ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
+target_link_libraries(pose_optimizer_tightly_coupled ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${CERES_LIBRARIES} glog ${GFLAGS_LIBRARIES})
 target_link_libraries(mapper ${catkin_LIBRARIES} ${PCL_LIBRARIES})
