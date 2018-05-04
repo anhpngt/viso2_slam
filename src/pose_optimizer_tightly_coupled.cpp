@@ -92,14 +92,14 @@ class PoseFusionKalmanFilter
 
   void setVisualMeasurementCovariance(Eigen::MatrixXd R_visual)
   {
-    if(R_visual.cols() != 18 || R_visual.rows() != 18)
+    if(R_visual.cols() != 6 || R_visual.rows() != 6)
       throw std::runtime_error("Matrix of wrong dimensions");
     R_visual_ = R_visual;
   }
 
   void setSensorMeasurementCovariance(Eigen::MatrixXd R_sensor)
   {
-    if(R_sensor.cols() != 18 || R_sensor.rows() != 18)
+    if(R_sensor.cols() != 6 || R_sensor.rows() != 6)
       throw std::runtime_error("Matrix of wrong dimensions");
     R_sensor_ = R_sensor;
   }
