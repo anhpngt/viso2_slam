@@ -1,6 +1,9 @@
 #include <iostream>
+#include <fstream>
 #include <random>
+#include <stdio.h>
 #include <string>
+#include <iomanip>
 
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
@@ -20,7 +23,23 @@
 #include "pose_graph_3d_error_term.h"
 #include <Eigen/Dense>
 
+#define EVALUATION
+
 using namespace std;
+
+std::string getTFStream(const tf::Transform& tf)
+{ 
+  char buffer[100];
+  double x, y, z, roll, pitch, yaw;
+  tf::Vector3 tf_xyz = tf.getOrigin();
+  x = tf_xyz.x();
+  y = tf_xyz.y();
+  z = tf_xyz.z();
+  tf.getBasis().getRPY(roll, pitch, yaw, 1);
+  if(!sprintf(buffer, "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f", x, y, z, roll, pitch, yaw))
+    throw std::runtime_error("Cannot convert tf::Transform to std::string");
+  return buffer;
+}
 
 namespace viso2_slam
 {
@@ -298,7 +317,7 @@ class PoseOptimizer
   std::mt19937 rd_generator_{rd_()}; 
   // std::default_random_engine rd_generator_;
   std::normal_distribution<> p_noise_{0., 0.5};
-  std::normal_distribution<> q_noise_{0., 1. / 180. * 3.141592653589793238463};
+  std::normal_distribution<> q_noise_{0., 5. / 180. * 3.141592653589793238463};
 
   // Optimizer
   Optimizer::VectorofPoses optimizer_poses_;
@@ -307,6 +326,13 @@ class PoseOptimizer
   ceres::Problem *optimizer_problem_ = new ceres::Problem; // BROKEN
   ceres::Solver::Options optimizer_options_;
   ceres::Solver::Summary optimizer_summary_;
+
+ #ifdef EVALUATION
+  std::ofstream kitti_stream;
+  std::ofstream vo_stream;
+  std::ofstream gps_stream;
+  std::ofstream kf_stream;
+ #endif // EVALUATION
 
  public:
 
@@ -324,6 +350,21 @@ class PoseOptimizer
     local_nh.param("publish_tf", publish_tf_, true);
     local_nh.param("is_kitti", is_kitti_, true);
     local_nh.param("add_gps_noise", add_gps_noise_, false);
+  
+   #ifdef EVALUATION
+    std::string output_directory_;
+    local_nh.param("output_directory", output_directory_, std::string("/home/echo/urop"));
+    kitti_stream.open(output_directory_ + "/kitti.csv");
+    vo_stream.open(output_directory_ + "/vo.csv");
+    gps_stream.open(output_directory_ + "/gps.csv");
+    kf_stream.open(output_directory_ + "/kf.csv");
+
+    kitti_stream << "timestamp,x,y,z,roll,pitch,yaw" << endl;
+    vo_stream << "timestamp,x,y,z,roll,pitch,yaw" << endl;
+    gps_stream << "timestamp,x,y,z,roll,pitch,yaw" << endl;
+    kf_stream << "timestamp,x,y,z,roll,pitch,yaw" << endl;
+
+   #endif 
     
     // Set up sync callback for viso2 odom
     pose_sub_.subscribe(nh, viso2_pose_topic_, 3);
@@ -397,6 +438,9 @@ class PoseOptimizer
     ros::Time new_vo_time(pose_msg->header.stamp.sec, pose_msg->header.stamp.nsec);
 
     tf_broadcaster_.sendTransform(tf::StampedTransform(new_vo_tf, new_vo_time, odom_frame_id_, "odom"));
+   #ifdef EVALUATION
+    vo_stream << std::setprecision(15) << new_vo_time.toSec() << "," << getTFStream(new_vo_tf) << endl;
+   #endif
 
     // Transform pose from odom frame to optimized frame
     tf::Transform current_pose = last_optimized_pose_ * (last_raw_pose_.inverse() * new_vo_tf);
@@ -439,6 +483,10 @@ class PoseOptimizer
       bool_msg.header = trajectory_msg_.header;
       bool_msg.data = false;
       new_optimization_pub_.publish(bool_msg);
+
+     #ifdef EVALUATION
+      kf_stream << std::setprecision(15) << new_vo_time.toSec() << "," << getTFStream(filtered_pose) << endl;
+     #endif
     }
     else // Pure VO
     {
@@ -460,6 +508,10 @@ class PoseOptimizer
       bool_msg.header = trajectory_msg_.header;
       bool_msg.data = false;
       new_optimization_pub_.publish(bool_msg);
+
+     #ifdef EVALUATION
+      kf_stream << std::setprecision(15) << new_vo_time.toSec() << "," << getTFStream(current_pose) << endl;
+     #endif
     }
     
     optimized_trajectory_pub_.publish(trajectory_msg_);
@@ -496,6 +548,9 @@ class PoseOptimizer
     is_gps_lost_ = false;
 
     tf_broadcaster_.sendTransform(tf::StampedTransform(gps_pose, current_time, odom_frame_id_, gps_frame_id_));
+   #ifdef EVALUATION
+    gps_stream << std::setprecision(15) << current_time.toSec() << "," << getTFStream(gps_pose) << endl;
+   #endif
   }
 
   void kittiTFCallback(const tf::tfMessage::ConstPtr& tf_msg)
@@ -550,6 +605,18 @@ class PoseOptimizer
                                   tf_msg->transforms[i].transform.rotation.y,
                                   tf_msg->transforms[i].transform.rotation.z,
                                   tf_msg->transforms[i].transform.rotation.w);
+
+       #ifdef EVALUATION
+        kitti_stream << std::setprecision(15) 
+                     << ros::Time(gps_pose.header.stamp.sec, gps_pose.header.stamp.nsec).toSec() << ","
+                     << getTFStream(tf::Transform(tf::Quaternion(tf_msg->transforms[i].transform.rotation.z,
+                                                                -tf_msg->transforms[i].transform.rotation.x,
+                                                                -tf_msg->transforms[i].transform.rotation.y,
+                                                                 tf_msg->transforms[i].transform.rotation.w),
+                                    tf::Vector3(tf_msg->transforms[i].transform.translation.z,
+                                               -tf_msg->transforms[i].transform.translation.x,
+                                               -tf_msg->transforms[i].transform.translation.y))) << endl;
+       #endif
 
         double rl, pt, yw;
         tf::Matrix3x3(kitti_quat).getRPY(rl, pt, yw, 1);

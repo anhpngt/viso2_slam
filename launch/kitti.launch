@@ -1,8 +1,9 @@
 <launch>
 
 	<!-- Arguments -->
-	<arg name="bagfile" default="/home/echo/Desktop/ugv_slam_data/kitti_data_odometry_gray_sequence_00.bag"/>
+	<arg name="bagfile" default="/home/echo/Desktop/ugv_slam_data/kitti_data_odometry_gray_sequence_02.bag"/>
   <arg name="camera" default="/kitti"/>
+  <arg name="output_directory" default="/home/echo/urop/" />
   <param name="/use_sim_time" value="true"/>
 
   <arg name="approximate_sync"      default="true" />
@@ -38,6 +39,7 @@
   </node>
 
   <node pkg="viso2_slam" type="pose_optimizer_tightly_coupled" name="pose_optimizer" output="screen" >
+    <param name="output_directory"      value="$(arg output_directory)"/>
     <param name="odom_frame_id"         value="$(arg world_frame_id)"/>
     <param name="base_link_frame_id"    value="$(arg base_link_frame_id)"/>
     <param name="gps_frame_id"          value="$(arg gps_frame_id)"/>
